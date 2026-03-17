@@ -2,6 +2,10 @@
 
 Bidirectional HDF5 serialization for Julia and Python with full type preservation. Files written in one language are fully readable in the other, with **automatic column-major/row-major transpose** for multi-dimensional arrays.
 
+[![Julia Tests](https://github.com/arko17/HDF5Manager/actions/workflows/julia-tests.yml/badge.svg)](https://github.com/arko17/HDF5Manager/actions/workflows/julia-tests.yml)
+[![Python Tests](https://github.com/arko17/HDF5Manager/actions/workflows/python-tests.yml/badge.svg)](https://github.com/arko17/HDF5Manager/actions/workflows/python-tests.yml)
+[![Roundtrip Integration Tests](https://github.com/arko17/HDF5Manager/actions/workflows/roundtrip-tests.yml/badge.svg)](https://github.com/arko17/HDF5Manager/actions/workflows/roundtrip-tests.yml)
+
 ## Features
 
 - Real and complex arrays (any dimension)
