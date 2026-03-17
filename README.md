@@ -1,4 +1,4 @@
-# HDF5Manager.jl
+# HDF5Manager
 
 Bidirectional HDF5 serialization for Julia and Python with full type preservation. Files written in one language are fully readable in the other.
 
@@ -28,13 +28,13 @@ vars = list_hdf5_variables("data.h5") # ["arr", "z", "scalar"]
 
 ```julia
 using Pkg
-Pkg.add(url="https://github.com/arko17/HDF5Manager.jl")
+Pkg.add(url="https://github.com/arko17/HDF5Manager")
 ```
 
 ## Python
 
 ```python
-from hdf5manager import save_hdf5, load_hdf5
+from hdfmanager import save_hdf5, load_hdf5
 import numpy as np
 
 # Save
@@ -47,7 +47,7 @@ data = load_hdf5("data.h5")
 ### Installation
 
 ```bash
-pip install git+https://github.com/arko17/HDF5Manager.jl.git#subdirectory=python
+pip install git+https://github.com/arko17/HDF5Manager.git#subdirectory=python
 ```
 
 ## Complex Number Storage

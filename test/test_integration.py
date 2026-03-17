@@ -14,7 +14,7 @@ import numpy as np
 import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'python'))
-from hdf5manager import save_hdf5, load_hdf5
+from hdfmanager import save_hdf5, load_hdf5
 
 TMPDIR = tempfile.mkdtemp()
 ROOT = os.path.normpath(os.path.join(os.path.dirname(__file__), '..'))
