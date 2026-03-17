@@ -76,6 +76,28 @@ Complex numbers are stored as separate real/imaginary parts in HDF5 groups:
   +-- @attrs: is_complex=true, element_type="Complex{Float64}"
 ```
 
+## Supported Data Types
+
+| Julia Type | Python Type | Storage | Notes |
+|---|---|---|---|
+| `Array{T<:Real}` | `np.ndarray` | Dataset | Shape in attrs |
+| `Array{T<:Complex}` | `np.ndarray` (complex) | Group (real/imag) | Auto-reconstructed |
+| `Complex` scalar | `complex` / `np.complex128` | Group (real/imag) | Auto-reconstructed |
+| `Int8`–`Int64`, `UInt` | `np.int*` / `int` | Dataset | dtype preserved |
+| `Float32`, `Float64` | `np.float32/64` / `float` | Dataset | dtype preserved |
+| `Bool` | `bool` | Dataset | |
+| `Dict` | `dict` | Group + attrs | Recursive |
+| `NamedTuple` | `dict` | Group + attrs | Keys become strings |
+
+## Dependencies
+
+### Julia
+- `HDF5.jl`
+
+### Python
+- `h5py`
+- `numpy`
+
 ## Running Tests
 
 ```bash
