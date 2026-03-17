@@ -1,0 +1,29 @@
+name: Julia Tests
+
+on:
+  push:
+    branches: [ main, master, develop ]
+  pull_request:
+    branches: [ main, master, develop ]
+
+jobs:
+  test:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        julia-version: ['1.6', '1.9']
+        os: [ubuntu-latest]
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Julia
+      uses: julia-actions/setup-julia@v1
+      with:
+        version: ${{ matrix.julia-version }}
+    
+    - name: Install dependencies
+      run: julia --project -e "using Pkg; Pkg.activate(); Pkg.instantiate()"
+    
+    - name: Run tests
+      run: julia --project -e "using Pkg; Pkg.test()"
