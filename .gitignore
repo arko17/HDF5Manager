@@ -1,0 +1,8 @@
+Manifest.toml
+*.h5
+__pycache__/
+*.pyc
+*.egg-info/
+dist/
+build/
+.eggs/
