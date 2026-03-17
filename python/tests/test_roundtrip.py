@@ -1,7 +1,7 @@
 """
 test_roundtrip.py
 
-Round-trip tests: Python save -> Python load for hdfmanager.
+Round-trip tests: Python save -> Python load for HDF5Manager.
 Run with:  pytest python/tests/test_roundtrip.py -v
 """
 
@@ -9,7 +9,7 @@ import tempfile
 import numpy as np
 import pytest
 
-from hdfmanager import (
+from HDF5Manager import (
     save_hdf5, load_hdf5, load_hdf5_item, save_hdf5_item,
     list_hdf5_variables, inspect_hdf5,
 )

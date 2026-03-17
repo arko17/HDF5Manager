@@ -3,7 +3,7 @@ requires = ["setuptools>=64", "wheel"]
 build-backend = "setuptools.backends._legacy:_Backend"
 
 [project]
-name = "hdfmanager"
+name = "HDF5Manager"
 version = "0.1.0"
 description = "Bidirectional HDF5 serialization for Julia and Python with full type preservation"
 readme = "README.md"
@@ -19,4 +19,4 @@ dependencies = [
 test = ["pytest"]
 
 [tool.setuptools.packages.find]
-include = ["hdfmanager*"]
+include = ["HDF5Manager*"]

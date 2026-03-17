@@ -34,7 +34,7 @@ Pkg.add(url="https://github.com/arko17/HDF5Manager")
 ## Python
 
 ```python
-from hdfmanager import save_hdf5, load_hdf5
+from HDF5Manager import save_hdf5, load_hdf5
 import numpy as np
 
 # Save
