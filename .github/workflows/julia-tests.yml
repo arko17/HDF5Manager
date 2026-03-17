@@ -26,7 +26,7 @@ jobs:
       run: julia --project -e "using Pkg; Pkg.instantiate()"
     
     - name: Install Test
-      run: julia -e "using Pkg; Pkg.add(\"Test\")"
+      run: julia --project -e "using Pkg; Pkg.add(\"Test\")"
     
     - name: Run tests
       run: julia --project -e "using Pkg; Pkg.test()"
