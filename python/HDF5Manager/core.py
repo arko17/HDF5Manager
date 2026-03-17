@@ -3,6 +3,8 @@ Core HDF5Manager functionality for Python.
 
 Load and save HDF5 files created by Julia HDF5Manager or Python,
 preserving Julia datatypes including complex numbers and arrays.
+Automatically handles column-major/row-major transpose when reading
+files written by Julia.
 """
 
 import h5py
@@ -10,96 +12,103 @@ import numpy as np
 from typing import Dict, Any, Union
 from pathlib import Path
 
+STORAGE_ORDER = "row_major"
+
+
+# ─── Transpose helpers ──────────────────────────────────────────────────────
+
+def _needs_transpose(file: h5py.File) -> bool:
+    """Return True if arrays need transposing (written by column-major writer)."""
+    order = file.attrs.get('storage_order')
+    if order is not None:
+        if isinstance(order, bytes):
+            order = order.decode()
+        return order == "column_major"
+    return False  # fallback: no transpose
+
+
+def _maybe_transpose(arr: np.ndarray) -> np.ndarray:
+    """Transpose a multi-dimensional array (ndim >= 2)."""
+    if arr.ndim >= 2:
+        return arr.T
+    return arr
+
+
+# ─── Loader class ────────────────────────────────────────────────────────────
 
 class JuliaHDF5Loader:
     """Load and manage HDF5 files created by Julia's HDF5Manager module."""
 
     def __init__(self, filepath: Union[str, Path]):
-        """
-        Initialize loader with an HDF5 file.
-
-        Args:
-            filepath: Path to the HDF5 file created by Julia
-        """
         self.filepath = Path(filepath)
         self.file = None
         self.data = {}
 
     def load(self) -> Dict[str, Any]:
-        """
-        Load all data from the HDF5 file, preserving Julia datatypes.
-
-        Returns:
-            Dictionary with variable names as keys and loaded data as values
-        """
         self.data = {}
-
         with h5py.File(self.filepath, 'r') as file:
+            transpose = _needs_transpose(file)
             for name in file.keys():
-                self.data[name] = self._load_item(file[name])
-
+                self.data[name] = self._load_item(file[name], transpose)
         return self.data
 
-    def _load_group(self, group: h5py.Group) -> Any:
-        """Load data from a group (usually complex numbers/arrays, or Dict/NamedTuple)."""
+    def _load_group(self, group: h5py.Group, transpose: bool) -> Any:
         attrs = dict(group.attrs)
 
-        # 1. Complex Numbers (Array or Scalar)
+        # Complex Numbers (Array or Scalar)
         if attrs.get('is_complex'):
             if 'real' in group and 'imag' in group:
                 real_part = np.array(group['real'])
                 imag_part = np.array(group['imag'])
-                return real_part + 1j * imag_part
+                result = real_part + 1j * imag_part
+                if transpose and isinstance(result, np.ndarray) and result.ndim >= 2:
+                    result = _maybe_transpose(result)
+                return result
 
-        # 2. Recursive Loading for Dicts & NamedTuples
+        # Recursive Loading for Dicts & NamedTuples
         result = {}
         for key in group.keys():
-            result[key] = self._load_item(group[key])
-
+            result[key] = self._load_item(group[key], transpose)
         return result
 
-    def _load_item(self, obj: Union[h5py.Group, h5py.Dataset]) -> Any:
-        """Load a single item (Group or Dataset) from the HDF5 file/group."""
+    def _load_item(self, obj: Union[h5py.Group, h5py.Dataset], transpose: bool) -> Any:
         if isinstance(obj, h5py.Group):
-            return self._load_group(obj)
+            return self._load_group(obj, transpose)
         elif isinstance(obj, h5py.Dataset):
-            return self._load_dataset(obj)
+            return self._load_dataset(obj, transpose)
         else:
             return None
 
-    def _load_dataset(self, dataset: h5py.Dataset) -> Any:
+    def _load_dataset(self, dataset: h5py.Dataset, transpose: bool) -> Any:
         data = np.array(dataset)
 
-        # Handle 0-d arrays (scalars)
         if data.ndim == 0:
             return data.item()
 
-        # Handle bytes strings
         if data.dtype.kind == 'S':
             return data.astype(str)
+
+        if transpose and data.ndim >= 2:
+            data = _maybe_transpose(data)
 
         return data
 
     def __getitem__(self, key: str) -> Any:
-        """Access loaded data by variable name."""
         if not self.data:
             self.load()
         return self.data[key]
 
     def __contains__(self, key: str) -> bool:
-        """Check if a variable exists."""
         if not self.data:
             self.load()
         return key in self.data
 
     def keys(self):
-        """Get all variable names."""
         if not self.data:
             self.load()
         return self.data.keys()
 
     def items(self):
-        """Get all variable name-value pairs."""
         if not self.data:
             self.load()
         return self.data.items()
@@ -115,18 +124,15 @@ class JuliaHDF5Loader:
 
 def load_hdf5(filepath: Union[str, Path]) -> Dict[str, Any]:
     """
-    Load all data from an HDF5 file created by Julia HDF5Manager.
+    Load all data from an HDF5 file.
 
-    Args:
-        filepath: Path to the HDF5 file
-
-    Returns:
-        Dictionary with variable names and their data
+    Multi-dimensional arrays are automatically transposed when the file was
+    written by a column-major language (Julia). If no ``storage_order``
+    attribute is present (legacy files), arrays are returned as-is.
 
     Example:
         >>> data = load_hdf5("data.h5")
         >>> print(data['my_array'])
-        >>> print(data['complex_data'])
     """
     loader = JuliaHDF5Loader(filepath)
     return loader.load()
@@ -135,13 +141,6 @@ def load_hdf5(filepath: Union[str, Path]) -> Dict[str, Any]:
 def load_hdf5_item(filepath: Union[str, Path], name: str) -> Any:
     """
     Load a specific variable from an HDF5 file.
-
-    Args:
-        filepath: Path to the HDF5 file
-        name: Name of the variable to load
-
-    Returns:
-        The requested variable
 
     Example:
         >>> arr = load_hdf5_item("data.h5", "my_array")
@@ -154,15 +153,8 @@ def list_hdf5_variables(filepath: Union[str, Path]) -> list:
     """
     List all variables in an HDF5 file.
 
-    Args:
-        filepath: Path to the HDF5 file
-
-    Returns:
-        List of variable names
-
     Example:
         >>> vars = list_hdf5_variables("data.h5")
-        >>> print(vars)
     """
     with h5py.File(filepath, 'r') as file:
         return list(file.keys())
@@ -172,35 +164,25 @@ def inspect_hdf5(filepath: Union[str, Path]) -> Dict[str, Dict[str, Any]]:
     """
     Inspect an HDF5 file and return detailed information about each variable.
 
-    Args:
-        filepath: Path to the HDF5 file
-
-    Returns:
-        Dictionary with variable information (shape, dtype, etc.)
-
     Example:
         >>> info = inspect_hdf5("data.h5")
         >>> for var_name, var_info in info.items():
         ...     print(f"{var_name}: {var_info}")
     """
     info = {}
-
     with h5py.File(filepath, 'r') as file:
         for name in file.keys():
             obj = file[name]
             info[name] = _get_object_info(obj)
-
     return info
 
 
 def _get_object_info(obj: Union[h5py.Dataset, h5py.Group]) -> Dict[str, Any]:
     """Get information about an HDF5 object."""
     info = {}
-
     if isinstance(obj, h5py.Group):
         info['type'] = 'group'
         info['contents'] = list(obj.keys())
-
         attrs = dict(obj.attrs)
         if 'is_complex' in attrs:
             info['is_complex'] = bool(attrs['is_complex'])
@@ -213,7 +195,6 @@ def _get_object_info(obj: Union[h5py.Dataset, h5py.Group]) -> Dict[str, Any]:
         info['dtype'] = str(obj.dtype)
         info['shape'] = obj.shape
         info['size'] = obj.size
-
     return info
 
 
@@ -230,7 +211,6 @@ def _save_variable(parent: h5py.Group, name: str, value: Any) -> None:
     elif isinstance(value, (list, tuple)):
         _save_array(parent, name, np.asarray(value))
     else:
-        # Scalar (int, float, bool, str)
         parent[name] = value
         parent[name].attrs['jl_type'] = str(type(value).__name__)
 
@@ -289,22 +269,15 @@ def save_hdf5(filepath: Union[str, Path], **kwargs: Any) -> None:
     """
     Save multiple variables to an HDF5 file, compatible with Julia HDF5Manager.
 
-    Automatically detects and handles:
-    - NumPy arrays (real and complex, any dimension)
-    - Complex scalars
-    - Numeric scalars (int, float, bool)
-    - Dictionaries (saved recursively)
-    - Lists / tuples (converted to arrays)
-
-    Args:
-        filepath: Path to the HDF5 file to create/overwrite
-        **kwargs: Variable name = value pairs to save
+    A ``storage_order = "row_major"`` attribute is written to the root group so
+    that readers in other languages can automatically transpose multi-dimensional
+    arrays.
 
     Example:
-        >>> save_hdf5("data.h5", arr=np.array([1,2,3]),
-        ...           z=1+2j, scalar=42)
+        >>> save_hdf5("data.h5", arr=np.array([1,2,3]), z=1+2j, scalar=42)
     """
     with h5py.File(filepath, 'w') as f:
+        f.attrs['storage_order'] = STORAGE_ORDER
         for name, value in kwargs.items():
             _save_variable(f, name, value)
 
@@ -313,15 +286,13 @@ def save_hdf5_item(filepath: Union[str, Path], name: str, value: Any) -> None:
     """
     Append or overwrite a single variable in an existing HDF5 file.
 
-    Args:
-        filepath: Path to the HDF5 file
-        name: Variable name
-        value: Value to save
-
     Example:
         >>> save_hdf5_item("data.h5", "new_arr", np.array([10, 20]))
     """
     with h5py.File(filepath, 'a') as f:
+        # Ensure storage_order is set
+        if 'storage_order' not in f.attrs:
+            f.attrs['storage_order'] = STORAGE_ORDER
         if name in f:
             del f[name]
         _save_variable(f, name, value)

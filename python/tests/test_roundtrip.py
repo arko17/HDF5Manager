@@ -5,9 +5,10 @@ Round-trip tests: Python save -> Python load for HDF5Manager.
 Run with:  pytest python/tests/test_roundtrip.py -v
 """
 
-import tempfile
+import tempfile, os
 import numpy as np
 import pytest
+import h5py
 
 from HDF5Manager import (
     save_hdf5, load_hdf5, load_hdf5_item, save_hdf5_item,
@@ -18,7 +19,6 @@ TMPDIR = tempfile.mkdtemp()
 
 
 def _path(name: str) -> str:
-    import os
     return os.path.join(TMPDIR, name)
 
 
@@ -52,15 +52,19 @@ class TestRealArrays:
 
     def test_2d(self):
         f = _path("arr2d.h5")
-        arr = np.array([[1, 2], [3, 4]], dtype=np.float64)
+        arr = np.array([[1, 2, 3], [4, 5, 6]], dtype=np.float64)  # (2, 3)
         save_hdf5(f, mat=arr)
-        np.testing.assert_array_almost_equal(load_hdf5(f)["mat"], arr)
+        loaded = load_hdf5(f)["mat"]
+        assert loaded.shape == (2, 3)
+        np.testing.assert_array_almost_equal(loaded, arr)
 
     def test_3d(self):
         f = _path("arr3d.h5")
         arr = np.random.rand(2, 3, 4)
         save_hdf5(f, tensor=arr)
-        np.testing.assert_array_almost_equal(load_hdf5(f)["tensor"], arr)
+        loaded = load_hdf5(f)["tensor"]
+        assert loaded.shape == (2, 3, 4)
+        np.testing.assert_array_almost_equal(loaded, arr)
 
     def test_int_array(self):
         f = _path("arr_int.h5")
@@ -81,15 +85,13 @@ class TestComplexScalars:
         f = _path("cscalar.h5")
         z = 1.5 + 2.5j
         save_hdf5(f, z=z)
-        loaded = load_hdf5(f)["z"]
-        assert loaded == pytest.approx(z)
+        assert load_hdf5(f)["z"] == pytest.approx(z)
 
     def test_numpy_complex_scalar(self):
         f = _path("np_cscalar.h5")
         z = np.complex128(3 + 4j)
         save_hdf5(f, z=z)
-        loaded = load_hdf5(f)["z"]
-        assert loaded == pytest.approx(z)
+        assert load_hdf5(f)["z"] == pytest.approx(z)
 
 
 # ── Complex arrays ────────────────────────────────────────────────────────────
@@ -105,7 +107,9 @@ class TestComplexArrays:
         f = _path("carr2d.h5")
         arr = np.array([[1 + 0j, 2 + 1j], [3 + 2j, 4 + 3j]])
         save_hdf5(f, mat=arr)
-        np.testing.assert_array_almost_equal(load_hdf5(f)["mat"], arr)
+        loaded = load_hdf5(f)["mat"]
+        assert loaded.shape == (2, 2)
+        np.testing.assert_array_almost_equal(loaded, arr)
 
 
 # ── Dicts ─────────────────────────────────────────────────────────────────────
@@ -182,3 +186,25 @@ class TestOverwrite:
         data = load_hdf5(f)
         assert data["x"] == 10
         assert "y" not in data
+
+
+# ── Storage order & transpose ─────────────────────────────────────────────────
+
+class TestStorageOrder:
+    def test_storage_order_attribute_written(self):
+        f = _path("storage_order.h5")
+        save_hdf5(f, x=1)
+        with h5py.File(f, 'r') as fh:
+            order = fh.attrs['storage_order']
+            if isinstance(order, bytes):
+                order = order.decode()
+            assert order == "row_major"
+
+    def test_legacy_file_no_transpose(self):
+        """A file without storage_order should be loaded as-is (no transpose)."""
+        f = _path("legacy.h5")
+        arr = np.array([[1, 2, 3], [4, 5, 6]], dtype=np.float64)
+        with h5py.File(f, 'w') as fh:
+            fh['mat'] = arr  # no storage_order attribute
+        loaded = load_hdf5(f)["mat"]
+        np.testing.assert_array_equal(loaded, arr)
